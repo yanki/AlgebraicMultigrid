@@ -1,0 +1,10 @@
+networkx==1.9.0
+numpy==1.8.2
+six==1.7.3
+python-dateutil==2.2.0
+graphviz==0.4.0
+tornado==4.0.1
+pyparsing==2.0.2
+-e git://github.com/nose-devs/nose2.git@3f7b6839428026bd7898ca7d5f278055564bd274#egg=nose2-master
+mock==1.0.1
+matplotlib==1.4.0
