@@ -5,11 +5,12 @@ import settings
 Q = settings.threshhold
 r = settings.neighborhood_size
 
+
 def AlgebraicMultigrid(G):
     """Accept a graph and attempt to solve it."""
     # print nx.number_of_nodes(G)
     # print nx.number_of_edges(G)
-    if nx.number_of_nodes(G) <= 8:
+    if nx.number_of_nodes(G) <= 7:
         S = Solve(G)
     else:
         G = Coarsen(G)
@@ -26,7 +27,7 @@ def Coarsen(G):
     global r
 
     laplacian = nx.laplacian_matrix(G)
-    # print laplacian
+    print laplacian
     # print G.adj
     volume_sum = 0
     count = 0
@@ -38,6 +39,11 @@ def Coarsen(G):
             adjacency = degree / min(r, Q * degree)
             sum_weight = 0.0
             # print "For neighbor: " + str(j)
+            # print laplacian
+            # temp = nx.all_neighbors(G, i)
+            # for each in temp:
+            #     print each
+            # print nx.all_neighbors(G, i)
             for k in (k for k in nx.all_neighbors(G, i) if laplacian[i - 1, k - 1] < 0.0):
                 sum_weight = sum_weight + G.edge[i][k]['weight']
                 # print "Edge: " + str((i, k)) + " sum_weight: " + str(sum_weight)
@@ -58,6 +64,7 @@ def Coarsen(G):
     """
     print "Coarsening..."
     return None
+
 
 def Solve(G):
     """Solve the graph."""

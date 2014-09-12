@@ -5,15 +5,32 @@ sys.path.insert(0, 'src')
 import alg_methods as method
 
 
-def SimpleGraph():
+def SimpleGraph(which):
     Graph = nx.Graph()
-    Graph.add_nodes_from([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], volume=1.0, future_volume=0.0)
-    Graph.add_edges_from([
-        (1, 3), (2, 3), (1, 12), (2, 12),
-        (3, 8), (3, 4), (4, 8), (4, 7),
-        (4, 6), (4, 5), (5, 6), (6, 9),
-        (6, 7), (6, 8), (7, 4), (7, 8),
-        (9, 10), (9, 11), (11, 10)], weight=102.0)
+    # Graph.add_nodes_from([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], volume=1.0, future_volume=0.0)
+    Graph.add_nodes_from([1, 2, 3, 4, 5, 6, 7, 8], volume=1.0)
+    # Graph.add_edges_from([
+    #     (1, 3), (2, 3), (1, 12), (2, 12),
+    #     (3, 8), (3, 4), (4, 8), (4, 7),
+    #     (4, 6), (4, 5), (5, 6), (6, 9),
+    #     (6, 7), (6, 8), (7, 8),
+    #     (9, 10), (9, 11), (11, 10)], weight=102.0)
+    if which == 1:
+        Graph.add_edges_from([
+            (1, 3, {'weight': 10.0}), (2, 3, {'weight': 10.0}),
+            (3, 4, {'weight': 30.0}), (4, 8, {'weight': 20.0}),
+            (4, 7, {'weight': 10.0}), (4, 6, {'weight': 30.0}),
+            (4, 5, {'weight': 20.0}), (5, 6, {'weight': 20.0}),
+            (6, 7, {'weight': 20.0}), (6, 8, {'weight': 10.0}),
+            (7, 8, {'weight': 20.0})])
+    elif which == 2:
+        Graph.add_edges_from([
+            (1, 3), (2, 3),
+            (3, 4), (4, 8),
+            (4, 7), (4, 6),
+            (4, 5), (5, 6),
+            (6, 7), (6, 8),
+            (7, 8)], weight=1.0)
     return Graph
 
 
@@ -23,7 +40,7 @@ def DrawGraph(Graph):
     plt.savefig("graph.png", dpi=1000, facecolor='w', edgecolor='w', orientation='portrait', papertype=None, format=None, transparent=False, bbox_inches=None, pad_inches=0.1)
 
 
-G = SimpleGraph()
+G = SimpleGraph(2)
 DrawGraph(G)
 
 # print G.nodes(data=True)
