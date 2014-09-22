@@ -33,20 +33,12 @@ def Coarsen(G):
     count = 0
     for iteration, i in enumerate(nx.nodes_iter(G)):
         G.node[i]['future_volume'] = G.node[i]['volume']
-        # print "For node: " + str(i)
         for j in nx.all_neighbors(G, i):
-            degree = laplacian[j - 1, j - 1]
+            degree = G.degree(j)
             adjacency = degree / min(r, Q * degree)
             sum_weight = 0.0
-            # print "For neighbor: " + str(j)
-            # print laplacian
-            # temp = nx.all_neighbors(G, i)
-            # for each in temp:
-            #     print each
-            # print nx.all_neighbors(G, i)
             for k in (k for k in nx.all_neighbors(G, i) if laplacian[i - 1, k - 1] < 0.0):
                 sum_weight = sum_weight + G.edge[i][k]['weight']
-                # print "Edge: " + str((i, k)) + " sum_weight: " + str(sum_weight)
             norm_weight = G.edge[i][j]['weight'] / sum_weight
             G.node[i]['future_volume'] = G.node[i]['future_volume'] + G.node[j]['volume'] * min(1.0, adjacency * norm_weight)
         volume_sum = volume_sum + G.node[i]['future_volume']
@@ -56,8 +48,8 @@ def Coarsen(G):
     print G.nodes(data=True)
     print G.edges(data=True)
     """
-    1. calculate future volume (mine)
-    2. algebraic distance between nodes (separate paper; tiffany's)
+    1. calculate future volume
+    2. algebraic distance between nodes
     3. find coarse seeds for aggregates
     4. find corase edges
     5. filtering
