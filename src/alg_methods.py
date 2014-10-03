@@ -3,16 +3,25 @@ import settings
 
 Q = settings.threshhold
 r = settings.neighborhood_size
+n = settings.aggregate_size
 
 
 def AlgebraicMultigrid(G):
     """Accept a graph and attempt to solve it."""
+    global n
+
     if nx.number_of_nodes(G) <= 7:
         S = Solve(G)
     else:
         G = FutureVolume(G)
         print G.nodes(data=True)
         print G.edges(data=True)
+        total_volume = 0.0
+        for i in nx.nodes_iter(G):
+            total_volume += G.node[i]['future_volume']
+        avg_volume = total_volume / nx.number_of_nodes(G)
+        print "Average future volume: " + str(avg_volume) + " Number of nodes: " + str(nx.number_of_nodes(G))
+        print "Incremented by n: " + str(n * avg_volume)
         """
         1. find algebraic distance
         2. future volume
@@ -34,11 +43,11 @@ def FutureVolume(G):
     laplacian = nx.laplacian_matrix(G)
     for i in nx.nodes_iter(G):
         G.node[i]['future_volume'] = G.node[i]['volume']
-        for j in nx.all_neighbors(G, i):
+        for j in G.neighbors(i):
             degree = G.degree(j)
             adjacency = degree / min(r, Q * degree)
             sum_weight = 0.0
-            for k in (k for k in nx.all_neighbors(G, i) if laplacian[i - 1, k - 1] < 0.0):
+            for k in (k for k in G.neighbors(i) if laplacian[i - 1, k - 1] < 0.0):
                 sum_weight += G.edge[i][k]['weight']
             norm_weight = G.edge[i][j]['weight'] / sum_weight
             G.node[i]['future_volume'] += G.node[j]['volume'] * min(1.0, adjacency * norm_weight)
