@@ -40,7 +40,7 @@ def DrawGraph(Graph):
     plt.savefig("graph.png", dpi=1000, facecolor='w', edgecolor='w', orientation='portrait', papertype=None, format=None, transparent=False, bbox_inches=None, pad_inches=0.1)
 
 
-G = SimpleGraph(2)
+G = SimpleGraph(1)
 DrawGraph(G)
 
 # print G.nodes(data=True)
