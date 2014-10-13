@@ -4,24 +4,40 @@ import settings
 Q = settings.threshhold
 r = settings.neighborhood_size
 n = settings.aggregate_size
+laplacian = None
 
+__all__ = ['AlgebraicMultigrid']
 
 def AlgebraicMultigrid(G):
     """Accept a graph and attempt to solve it."""
     global n
+    global laplacian
 
     if nx.number_of_nodes(G) <= 7:
-        S = Solve(G)
+        G = Solve(G)
     else:
-        G = FutureVolume(G)
-        print G.nodes(data=True)
-        print G.edges(data=True)
+        laplacian = nx.laplacian_matrix(G)
+        G = FutureVolume(G, None)
+        # print G.nodes(data=True)
+        # print G.edges(data=True)
         total_volume = 0.0
+        seeds = {}
+        non_seeds = {}
         for i in nx.nodes_iter(G):
             total_volume += G.node[i]['future_volume']
+            non_seeds[i] = G.node[i]['future_volume']
         avg_volume = total_volume / nx.number_of_nodes(G)
         print "Average future volume: " + str(avg_volume) + " Number of nodes: " + str(nx.number_of_nodes(G))
         print "Incremented by n: " + str(n * avg_volume)
+        for node, value in non_seeds.items():
+            if(value > n * avg_volume):
+                seeds[node] = value
+                del non_seeds[node]
+        print non_seeds
+        print seeds
+        # G = FutureVolume(G, non_seeds.keys())
+        # print non_seeds
+        # print seeds
         """
         1. find algebraic distance
         2. future volume
@@ -30,18 +46,22 @@ def AlgebraicMultigrid(G):
         """
         # S = AlgebraicMultigrid(G)
         # S = Refine(S)
-        S = None
-    return S
+    return G
 
 
-def FutureVolume(G):
+def FutureVolume(G, nodes):
     """Coarsens the graph G."""
 
     global Q
     global r
+    global laplacian
 
-    laplacian = nx.laplacian_matrix(G)
-    for i in nx.nodes_iter(G):
+    if(nodes is None):
+        node_list = G.nodes()
+    else:
+        node_list = nodes
+        print node_list
+    for i in node_list:
         G.node[i]['future_volume'] = G.node[i]['volume']
         for j in G.neighbors(i):
             degree = G.degree(j)
@@ -54,6 +74,8 @@ def FutureVolume(G):
     print "Calculated Future Volume."
     return G
 
+def DefineVariables():
+    """Defines the variables for the Algorithm."""
 
 def Solve(G):
     """Solve the graph."""
