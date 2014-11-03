@@ -35,9 +35,8 @@ def AlgebraicMultigrid(G):
                 del non_seeds[node]
         print non_seeds
         print seeds
-        # G = FutureVolume(G, non_seeds.keys())
-        # print non_seeds
-        # print seeds
+        G = FutureVolume(G, non_seeds.keys())
+        print G.nodes(data=True)
         """
         1. find algebraic distance
         2. future volume
@@ -60,15 +59,15 @@ def FutureVolume(G, nodes):
         node_list = G.nodes()
     else:
         node_list = nodes
-        print node_list
+    print "for nodes: " + str(node_list)
     for i in node_list:
         G.node[i]['future_volume'] = G.node[i]['volume']
-        for j in G.neighbors(i):
-            degree = G.degree(j)
+        for j in (x for x in G.neighbors(i) if x in node_list):  # if j in in nodes
+            degree = G.degree(j) * 1.0
             adjacency = degree / min(r, Q * degree)
             sum_weight = 0.0
-            for k in (k for k in G.neighbors(i) if laplacian[i - 1, k - 1] < 0.0):
-                sum_weight += G.edge[i][k]['weight']
+            for k in G.neighbors(j):
+                sum_weight += G.edge[j][k]['weight']
             norm_weight = G.edge[i][j]['weight'] / sum_weight
             G.node[i]['future_volume'] += G.node[j]['volume'] * min(1.0, adjacency * norm_weight)
     print "Calculated Future Volume."
