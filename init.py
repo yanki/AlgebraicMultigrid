@@ -1,9 +1,7 @@
 import sys
-import time
+import json
 import networkx as nx
 import matplotlib.pyplot as plt
-import simplejson as json
-import scipy.io as sci
 sys.path.insert(0, 'src')
 from alg_methods import AlgebraicMultigrid as AM
 from networkx import NetworkXError
@@ -16,6 +14,7 @@ __author__ = """\n""".join(['Ilya Safro <isafro@g.clemson.edu>',
 def readMesh():
     edge_list = []
     G = nx.Graph()
+    # graph = 'graphs/native.rmf'
     graph = 'graphs/mesh.rmf'
     with open(graph) as f:
         for index, line in enumerate(f.readlines()):
@@ -32,10 +31,7 @@ def DrawGraph(Graph):
     nx.draw(Graph, layout, node_color='#A0CBE2', edge_color='#BB0000', width=1, edge_cmap=plt.cm.Blues, with_labels=True)
     plt.savefig("graph.png", dpi=1500, facecolor='w', edgecolor='w', orientation='portrait', papertype=None, format=None, transparent=False, bbox_inches=None, pad_inches=0.1)
 
-# G = nx.Graph()
 # G = json_graph.node_link_graph(json.load(open('graphs/star.json')))
-# matrix = sci.mmread('graphs/mesh.mtx')
-# G = nx.from_scipy_sparse_matrix(matrix)
 G = readMesh()
 for node in G.nodes():
     G.node[node]['volume'] = 1
@@ -46,11 +42,4 @@ if (G.is_directed() is True) or (G.is_multigraph() is True):
 elif (len(G.nodes()) == 0) or (len(G.edges()) == 0):
         raise NetworkXError("The graph does not contain either Nodes or Edges.")
 else:
-    # data_list = []
-    # for node in G.nodes():
-    #     data_list.append(len(G.neighbors(node)))
-    # print data_list
-    # json.dump(json_graph.node_link_data(G), open('graph.json', 'w'))
-    # start_time = time.time()
-    AM(G)# , volume='volume')
-# print "Execution time: " + str(time.time() - start_time) + " seconds"
+    AM(G)

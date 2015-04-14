@@ -1,0 +1,5 @@
+Run profiler:
+	python -m cProfile -o AM init.py
+
+Profiler contents:
+	runsnake AM
