@@ -43,8 +43,9 @@ def AlgebraicMultigrid(G, **args):
         print "Generating Volumes: " + str(time.time() - start_time) + " seconds"
         start_time = time.time()
 
-        seeds, laplacian = GetCoarseSeeds(G)
-        # print G.nodes(data=True)
+        laplacian = sps.csr_matrix(nx.laplacian_matrix(G, weight='weight'))
+
+        seeds = GetCoarseSeeds(G)
         print "Getting seeds: " + str(time.time() - start_time) + " seconds"
         start_time = time.time()
         # if iteration == 2:
@@ -55,7 +56,10 @@ def AlgebraicMultigrid(G, **args):
         print "Compressing Matrix: " + str(time.time() - start_time) + " seconds"
         start_time = time.time()
 
-        reduced_laplacian = P_mtx.transpose() * (sps.diags(laplacian.diagonal(), 0) - laplacian) * P_mtx
+        # print (sps.diags(laplacian.diagonal(), 0) - laplacian)
+        # print sps.csr_matrix(nx.adjacency_matrix(G, weight='weight'))
+        # reduced_laplacian = P_mtx.transpose() * (sps.diags(laplacian.diagonal(), 0) - laplacian) * P_mtx
+        reduced_laplacian = P_mtx.transpose() * sps.csr_matrix(nx.adjacency_matrix(G, weight='weight')) * P_mtx
         G = nx.from_numpy_matrix((reduced_laplacian - sps.diags(reduced_laplacian.diagonal(), 0)).todense())
         print "Creating Coarse Graph: " + str(time.time() - start_time) + " seconds"
         start_time = time.time()
@@ -75,7 +79,7 @@ def CompressMatrix(G, seeds, laplacian):
     """Gets the matrix of a coarse graph."""
     a = 0.0
 
-    neighborhood_size = 6
+    neighborhood_size = 2
 
     nodes_num = len(G.nodes())
 
@@ -162,8 +166,6 @@ def FutureVolume(G, nodes, Q):
 
     r = 2.0
 
-    previous = None
-
     for i in nodes:
         G.node[i]['future_volume'] = G.node[i]['volume']
         for j in list(set(G.neighbors(i)).intersection(nodes)):
@@ -185,7 +187,6 @@ def GetCoarseSeeds(G):
     n = 2.0
     Q = .5
 
-    laplacian = nx.laplacian_matrix(G, weight='weight')
     G = FutureVolume(G, G.nodes(), Q)
     seeds = []
     total_volume = sum((nx.get_node_attributes(G, 'future_volume')).values())
@@ -205,7 +206,7 @@ def GetCoarseSeeds(G):
                 seed_edges += data[2]['weight']
         if seed_edges / total_edges < Q:
             seeds.append(node)
-    return seeds, laplacian
+    return seeds
 
 
 def DefineVariables():

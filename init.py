@@ -14,8 +14,8 @@ __author__ = """\n""".join(['Ilya Safro <isafro@g.clemson.edu>',
 def readMesh():
     edge_list = []
     G = nx.Graph()
-    # graph = 'graphs/native.rmf'
-    graph = 'graphs/mesh.rmf'
+    graph = 'graphs/native.rmf'
+    # graph = 'graphs/mesh.rmf'
     with open(graph) as f:
         for index, line in enumerate(f.readlines()):
             values = line.split(' ')
@@ -36,7 +36,7 @@ G = readMesh()
 for node in G.nodes():
     G.node[node]['volume'] = 1
 # DrawGraph(G)
-#plt.savefig("graph.png", dpi=1500, facecolor='w', edgecolor='w', orientation='portrait', papertype=None, format=None, transparent=False, bbox_inches=None, pad_inches=0.1)
+# plt.savefig("graph.png", dpi=1500, facecolor='w', edgecolor='w', orientation='portrait', papertype=None, format=None, transparent=False, bbox_inches=None, pad_inches=0.1)
 if (G.is_directed() is True) or (G.is_multigraph() is True):
         raise NetworkXError("AlgebraicMultigrid is not defined for directed or multi graphs.")
 elif (len(G.nodes()) == 0) or (len(G.edges()) == 0):
