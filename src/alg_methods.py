@@ -1,5 +1,6 @@
 import sys
 import time
+import random
 import networkx as nx
 import scipy.sparse as sps
 # import scipy
@@ -22,7 +23,8 @@ def AlgebraicMultigrid(G, **args):
     global start_time
     global iteration
 
-    node_limit = 8
+    node_limit = 7
+    edge_weight_limit = 0.0
 
     # if iteration == 1:
     complete_time = time.time()
@@ -43,23 +45,22 @@ def AlgebraicMultigrid(G, **args):
         print "Generating Volumes: " + str(time.time() - start_time) + " seconds"
         start_time = time.time()
 
-        laplacian = sps.csr_matrix(nx.laplacian_matrix(G, weight='weight'))
+        # laplacian = sps.csr_matrix(nx.laplacian_matrix(G, weight='weight'))
+        # laplacian = nx.laplacian_matrix(G, weight='weight')
 
         seeds = GetCoarseSeeds(G)
         print "Getting seeds: " + str(time.time() - start_time) + " seconds"
         start_time = time.time()
-        # if iteration == 2:
-        #     sys.exit()
 
-        P_mtx = CompressMatrix(G, seeds, laplacian)
-        # print P_mtx.A
+        ScaleEdges(G, edge_weight_limit, seeds)
+        print "Scaling Edges: " + str(time.time() - start_time) + " seconds"
+        start_time = time.time()
+
+        P_mtx = CompressMatrix(G, seeds, edge_weight_limit)
         print "Compressing Matrix: " + str(time.time() - start_time) + " seconds"
         start_time = time.time()
 
-        # print (sps.diags(laplacian.diagonal(), 0) - laplacian)
-        # print sps.csr_matrix(nx.adjacency_matrix(G, weight='weight'))
-        # reduced_laplacian = P_mtx.transpose() * (sps.diags(laplacian.diagonal(), 0) - laplacian) * P_mtx
-        reduced_laplacian = P_mtx.transpose() * sps.csr_matrix(nx.adjacency_matrix(G, weight='weight')) * P_mtx
+        reduced_laplacian = P_mtx.transpose() * nx.adjacency_matrix(G, weight='weight') * P_mtx
         G = nx.from_numpy_matrix((reduced_laplacian - sps.diags(reduced_laplacian.diagonal(), 0)).todense())
         print "Creating Coarse Graph: " + str(time.time() - start_time) + " seconds"
         start_time = time.time()
@@ -75,9 +76,8 @@ def AlgebraicMultigrid(G, **args):
     return G
 
 
-def CompressMatrix(G, seeds, laplacian):
+def CompressMatrix(G, seeds, edge_weight_limit):
     """Gets the matrix of a coarse graph."""
-    a = 0.0
 
     neighborhood_size = 2
 
@@ -87,27 +87,20 @@ def CompressMatrix(G, seeds, laplacian):
     col_array = []
     data_array = []
 
-    initial = (G.nodes())[0]
     for i in G.nodes():
         if i in seeds:
-            if initial != 0:
-                row_array.append(i - 1)
-            else:
-                row_array.append(i)
+            row_array.append(i)
             col_array.append(seeds.index(i))
             data_array.append(1)
         else:
             neighbors = list(set(G.neighbors(i)).intersection(seeds))
             for j in neighbors:
-                if initial != 0:
-                    row_array.append(i - 1)
-                else:
-                    row_array.append(i)
+                row_array.append(i)
                 col_array.append(seeds.index(j))
                 edge_sum = 0.0
                 for neighbor in neighbors:
                     weight = G.edge[i][neighbor]['weight']
-                    if weight >= a:
+                    if weight >= edge_weight_limit:
                         edge_sum += weight
                 data_array.append(G.edge[i][j]['weight'] / edge_sum)
             if len(neighbors) > neighborhood_size:
@@ -132,15 +125,6 @@ def CompressMatrix(G, seeds, laplacian):
     data = np.array(data_array)
     mtx = sps.csr_matrix((data, (row, col)),
         shape=(nodes_num, len(seeds)))
-    # print mtx
-    # print mtx.sum(axis=1)
-    # print mtx.A
-    # print seeds
-    # for summa in mtx.sum(axis=1):
-    #     if summa.item(0) > 1.0:
-    #         print summa.item(0) - 1.0
-    #         print "ROW SUM ERROR!"
-    # sys.exit()
     return mtx
 
 
@@ -171,12 +155,8 @@ def FutureVolume(G, nodes, Q):
         for j in list(set(G.neighbors(i)).intersection(nodes)):
             degree = G.degree(j)
             adjacency = degree / min(r, Q * degree)
-            sum_weight = 0.0
-            for k in G.edges_iter(j, data=True):
-                sum_weight += k[2]['weight']
-            norm_weight = G.edge[i][j]['weight'] / sum_weight
+            norm_weight = G.edge[i][j]['weight'] / G.node[j]['sum_weight']
             G.node[i]['future_volume'] += G.node[j]['volume'] * min(1.0, adjacency * norm_weight)
-    return G
 
 
 def GetCoarseSeeds(G):
@@ -187,26 +167,76 @@ def GetCoarseSeeds(G):
     n = 2.0
     Q = .5
 
-    G = FutureVolume(G, G.nodes(), Q)
+    nodes = G.nodes()
     seeds = []
+    non_seeds = []
+
+    run_time = time.time()
+
+    for k in nodes:
+        G.node[k]['sum_weight'] = sum(edge[2]['weight'] for edge in G.edges_iter(k, data=True))
+
+    FutureVolume(G, nodes, Q)
+
     total_volume = sum((nx.get_node_attributes(G, 'future_volume')).values())
     avg_volume = total_volume / nx.number_of_nodes(G)
     for node, data in G.nodes(data=True):
         if data['future_volume'] > n * avg_volume:
             seeds.append(node)
-    non_seeds = set(G.nodes()).difference(seeds)
-    G = FutureVolume(G, non_seeds, Q)
+    non_seeds = set(nodes).difference(seeds)
+    FutureVolume(G, non_seeds, Q)
     non_seeds = sorted(non_seeds, key=lambda node: G.node[node]['future_volume'], reverse=True)
+
     for node in non_seeds:
-        seed_edges = 0.0
-        total_edges = 0.0
-        for data in G.edges_iter(node, data=True):
-            total_edges += data[2]['weight']
-            if data[1] in seeds:
-                seed_edges += data[2]['weight']
-        if seed_edges / total_edges < Q:
+        seed_sum = 0.0
+        seed_edges = set(seeds).intersection(G.neighbors(node))
+        for seed in seed_edges:
+            seed_sum += G[node][seed]['weight']
+        if seed_sum / G.node[node]['sum_weight'] <= Q: # [ <= Q ] this difference causes division by zero in Edge Scaling
             seeds.append(node)
     return seeds
+
+
+def ScaleEdges(G, edge_weight_limit, seeds):
+    """Scales distance between strongly connected nodes to avoid second handed pull of their aggregates."""
+    initializations = 10
+    iterations = 10
+    omega = 0.5
+    nodes = G.nodes(data=True)
+
+    scales = np.zeros((initializations, len(nodes)))
+    # minimum = (np.random.rand(1, len(nodes))).flatten() - .5
+    # maximum = np.copy(minimum)
+    # initial = np.copy(minimum)
+    # previous = np.copy(minimum)
+    for init in range(initializations):
+        initial = (np.random.rand(1, len(nodes))).flatten() - .5
+        minimum = (np.full((1, len(nodes)), 1))[0]
+        maximum = (np.full((1, len(nodes)), -1))[0]
+        previous = np.copy(initial)
+        for iteration in range(iterations):
+            current = np.zeros(len(nodes))
+            for node, data in nodes:
+                weights = data['sum_weight']
+                scale_neighbors = 0.0
+                for edge in G.edges(node, data=True):
+                    scale_neighbors += edge[2]['weight'] * previous[edge[1]]
+                scale = omega * previous[node] + (1.0 - omega) * (scale_neighbors / weights)
+                current[node] = scale
+                if scale < minimum[node]:
+                    minimum[node] = scale
+                if scale > maximum[node]:
+                    maximum[node] = scale
+            previous = np.copy(current)
+        for index, center in enumerate(initial):
+            a = abs(center - minimum[index])
+            b = abs(maximum[index] - center)
+            scales[init][index] = a / (a + b)
+    for node, neighbor in G.edges():
+        summa = 0.0
+        for init in scales:
+            summa += (init[node] - init[neighbor]) ** 2
+        G[node][neighbor]['weight'] = 1.0 / summa
 
 
 def DefineVariables():
