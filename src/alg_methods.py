@@ -1,17 +1,14 @@
-import sys
-import time
-import random
+import sys, time, random, operator, json
 import networkx as nx
 import scipy.sparse as sps
 # import scipy
-import operator
 import numpy as np
 import matplotlib.pyplot as plt
 
 # volume = None
 complete_time = None
 start_time = None
-iteration = 1
+iteration = 0
 
 __all__ = ['AlgebraicMultigrid']
 
@@ -23,7 +20,7 @@ def AlgebraicMultigrid(G, **args):
     global start_time
     global iteration
 
-    node_limit = 7
+    node_limit = 10
     edge_weight_limit = 0.0
 
     # if iteration == 1:
@@ -32,9 +29,8 @@ def AlgebraicMultigrid(G, **args):
     print "Nodes: " + str(len(G.nodes()))
     print "Edges: " + str(len(G.edges()))
 
-    # nx.draw(G, node_size=50, layout="sfdp")
-    # plt.savefig("plots/graph" + str(iteration) + ".pdf", format="PNG")
-    # plt.show()
+    # DrawGraph(G)
+    # print G.nodes(data=True)
 
     if nx.number_of_nodes(G) <= node_limit:
         G = Solve(G)
@@ -42,38 +38,67 @@ def AlgebraicMultigrid(G, **args):
         start_time = time.time()
 
         volumes = VolumesMatrix(G)
-        print "Generating Volumes: " + str(time.time() - start_time) + " seconds"
-        start_time = time.time()
+        # print "Generating Volumes: " + str(time.time() - start_time) + " seconds"
+        # start_time = time.time()
 
         # laplacian = sps.csr_matrix(nx.laplacian_matrix(G, weight='weight'))
         # laplacian = nx.laplacian_matrix(G, weight='weight')
 
         seeds = GetCoarseSeeds(G)
-        print "Getting seeds: " + str(time.time() - start_time) + " seconds"
-        start_time = time.time()
+        # print seeds
 
-        ScaleEdges(G, edge_weight_limit, seeds)
-        print "Scaling Edges: " + str(time.time() - start_time) + " seconds"
-        start_time = time.time()
+        with open('iterations_schema.json', 'r') as schema_file:
+            schema = json.load(schema_file)
+
+        schema["iterations"][iteration] = {}
+        # naming[iteration] = {}
+        for index, seed in enumerate(seeds):
+            schema["iterations"][iteration][index] = seed
+
+        with open("iterations_schema.json", 'w') as outfile:
+            json.dump(schema, outfile)
+
+        # sys.exit()
+        # print "Getting seeds: " + str(time.time() - start_time) + " seconds"
+        # start_time = time.time()
+
+        #ScaleEdges(G, edge_weight_limit, seeds)
+        # print "Scaling Edges: " + str(time.time() - start_time) + " seconds"
+        # start_time = time.time()
 
         P_mtx = CompressMatrix(G, seeds, edge_weight_limit)
-        print "Compressing Matrix: " + str(time.time() - start_time) + " seconds"
-        start_time = time.time()
+        # print "Compressing Matrix: " + str(time.time() - start_time) + " seconds"
+        # start_time = time.time()
 
         reduced_laplacian = P_mtx.transpose() * nx.adjacency_matrix(G, weight='weight') * P_mtx
         G = nx.from_numpy_matrix((reduced_laplacian - sps.diags(reduced_laplacian.diagonal(), 0)).todense())
-        print "Creating Coarse Graph: " + str(time.time() - start_time) + " seconds"
-        start_time = time.time()
+        # print "Creating Coarse Graph: " + str(time.time() - start_time) + " seconds"
+        # start_time = time.time()
 
         volumes = (P_mtx.transpose() * volumes).todense()
         for node in G.nodes():
             G.node[node]['volume'] = volumes.item(node)
-        print "Distributing Volumes: " + str(time.time() - start_time) + " seconds"
+        # print "Distributing Volumes: " + str(time.time() - start_time) + " seconds"
         # sys.exit()
         iteration += 1
         S = AlgebraicMultigrid(G)
         # S = Refine(S)
     return G
+
+def DrawGraph(Graph):
+    global iteration    
+
+    # layout = nx.random_layout(Graph, dim=2)
+    layout = nx.spring_layout(Graph, iterations=200)
+    nx.draw(Graph, node_size=1, pos=layout, font_size=.3, font_color="blue",# layout="sfdp",
+        # node_color='#A0CBE2', edge_color='#BB0000', 
+        width=.2, linewidths=.2, edge_cmap=plt.cm.Blues, with_labels=True
+        )
+    plt.savefig("plots/start_graph" + str(iteration) + ".pdf", # dpi=1500, facecolor='w', edgecolor='w', 
+        format="PDF", # format="None", orientation='portrait', papertype=None, 
+        transparent=False, bbox_inches=None, pad_inches=0.1
+        )
+    plt.hold(False)
 
 
 def CompressMatrix(G, seeds, edge_weight_limit):
@@ -246,9 +271,33 @@ def DefineVariables():
 def Solve(G):
     """Solve the graph."""
     global complete_time
+    global iteration
+
+    decryptor = iteration - 1
 
     print "In Solve."
-    print "Execution time: " + str(time.time() - complete_time) + " seconds"
+    # print "Execution time: " + str(time.time() - complete_time) + " seconds"
+    print G.nodes(data=True)
+    print G.edges(data=True)
+
+    with open('iterations_schema.json', 'r') as schema_file:
+            schema = json.load(schema_file)
+    with open('name_schema.json', 'r') as schema_file:
+            names = json.load(schema_file)
+    # print schema
+    # print schema["iterations"]
+    for node in G.nodes():
+        translate = node
+        schema_trace = str(node)
+        while decryptor >= 0:
+            translate = str(schema["iterations"][str(decryptor)][str(translate)])
+            schema_trace += " -> " + translate
+            decryptor -= 1
+        for table in names:
+            if names[table]["id"] == int(translate):
+                schema_trace += " -> " + table
+        decryptor = iteration - 1
+        print schema_trace
     return None
 
 
