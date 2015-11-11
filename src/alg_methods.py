@@ -1,5 +1,6 @@
 import sys, time, random, operator, json
 import networkx as nx
+from networkx.readwrite import json_graph
 import scipy.sparse as sps
 # import scipy
 import numpy as np
@@ -21,7 +22,7 @@ def AlgebraicMultigrid(G, **args):
     global iteration
 
     node_limit = 10
-    edge_weight_limit = 0.0
+    edge_weight_limit = 0.5
 
     # if iteration == 1:
     complete_time = time.time()
@@ -30,6 +31,7 @@ def AlgebraicMultigrid(G, **args):
     print "Edges: " + str(len(G.edges()))
 
     # DrawGraph(G)
+    # PrintGraph(G)
     # print G.nodes(data=True)
 
     if nx.number_of_nodes(G) <= node_limit:
@@ -62,7 +64,8 @@ def AlgebraicMultigrid(G, **args):
         # print "Getting seeds: " + str(time.time() - start_time) + " seconds"
         # start_time = time.time()
 
-        #ScaleEdges(G, edge_weight_limit, seeds)
+        # ScaleEdges(G, edge_weight_limit, seeds)
+        # sys.exit()
         # print "Scaling Edges: " + str(time.time() - start_time) + " seconds"
         # start_time = time.time()
 
@@ -88,17 +91,26 @@ def AlgebraicMultigrid(G, **args):
 def DrawGraph(Graph):
     global iteration    
 
-    # layout = nx.random_layout(Graph, dim=2)
     layout = nx.spring_layout(Graph, iterations=200)
+
     nx.draw(Graph, node_size=1, pos=layout, font_size=.3, font_color="blue",# layout="sfdp",
-        # node_color='#A0CBE2', edge_color='#BB0000', 
-        width=.2, linewidths=.2, edge_cmap=plt.cm.Blues, with_labels=True
+            # node_color='#A0CBE2', edge_color='#BB0000', 
+            width=.2, linewidths=.2, edge_cmap=plt.cm.Blues, with_labels=True
         )
-    plt.savefig("plots/start_graph" + str(iteration) + ".pdf", # dpi=1500, facecolor='w', edgecolor='w', 
-        format="PDF", # format="None", orientation='portrait', papertype=None, 
-        transparent=False, bbox_inches=None, pad_inches=0.1
+
+    plt.savefig("records/graph_plot_" + str(iteration) + ".pdf", # dpi=1500, facecolor='w', edgecolor='w', 
+            format="PDF", # format="None", orientation='portrait', papertype=None, 
+            transparent=False, bbox_inches=None, pad_inches=0.1
         )
+
     plt.hold(False)
+
+def PrintGraph(Graph):
+    global iteration
+
+    data = json_graph.node_link_data(Graph)
+    with open("records/graph_data_" + str(iteration) + ".json", 'w') as outfile:
+        json.dump(data, outfile)
 
 
 def CompressMatrix(G, seeds, edge_weight_limit):
@@ -117,17 +129,22 @@ def CompressMatrix(G, seeds, edge_weight_limit):
             row_array.append(i)
             col_array.append(seeds.index(i))
             data_array.append(1)
+
         else:
             neighbors = list(set(G.neighbors(i)).intersection(seeds))
+            for neighbor in neighbors:
+                if G.edge[i][neighbor]["weight"] < edge_weight_limit:
+                    neighbors.remove(neighbor)
+
+            # list(neighbors.difference(neighbor for neighbor in neighbors if (G.edge[i][neighbor]["weight"] < edge_weight_limit)))
+
+            sum_weight = sum(G.edge[i][neighbor]["weight"] for neighbor in neighbors)
+
             for j in neighbors:
                 row_array.append(i)
                 col_array.append(seeds.index(j))
-                edge_sum = 0.0
-                for neighbor in neighbors:
-                    weight = G.edge[i][neighbor]['weight']
-                    if weight >= edge_weight_limit:
-                        edge_sum += weight
-                data_array.append(G.edge[i][j]['weight'] / edge_sum)
+                data_array.append(G.edge[i][j]["weight"] / sum_weight)
+
             if len(neighbors) > neighborhood_size:
                 diff = len(neighbors) - neighborhood_size
                 col_array = col_array[:(len(col_array) - diff)]
@@ -139,17 +156,22 @@ def CompressMatrix(G, seeds, edge_weight_limit):
 
                 high_entries = []
                 high_positions = np.argsort(data_entries)[::-1][:neighborhood_size]
+
                 for pos in high_positions:
                     high_entries.append(data_entries[pos])
                     row_array.append(row_entries[pos])
+
                 data_sum = sum(high_entries)
+
                 for entry in high_entries:
                     data_array.append(entry / data_sum)
+
     col = np.array(col_array)
     row = np.array(row_array)
     data = np.array(data_array)
-    mtx = sps.csr_matrix((data, (row, col)),
-        shape=(nodes_num, len(seeds)))
+
+    mtx = sps.csr_matrix((data, (row, col)), shape=(nodes_num, len(seeds)))
+
     return mtx
 
 
@@ -158,15 +180,18 @@ def VolumesMatrix(G):
     row_array = []
     col_array = []
     data_array = []
+
     for index, node in enumerate(G.nodes(data=True)):
         row_array.append(0)
         col_array.append(index)
         data_array.append(node[1]['volume'])
+
     row = np.array(row_array)
     col = np.array(col_array)
     data = np.array(data_array)
-    mtx = sps.csr_matrix((data, (col, row)),
-        shape=(len(G.nodes()), 1))
+
+    mtx = sps.csr_matrix((data, (col, row)), shape=(len(G.nodes()), 1))
+
     return mtx
 
 
@@ -177,10 +202,13 @@ def FutureVolume(G, nodes, Q):
 
     for i in nodes:
         G.node[i]['future_volume'] = G.node[i]['volume']
+
         for j in list(set(G.neighbors(i)).intersection(nodes)):
             degree = G.degree(j)
             adjacency = degree / min(r, Q * degree)
+
             norm_weight = G.edge[i][j]['weight'] / G.node[j]['sum_weight']
+
             G.node[i]['future_volume'] += G.node[j]['volume'] * min(1.0, adjacency * norm_weight)
 
 
@@ -205,20 +233,27 @@ def GetCoarseSeeds(G):
 
     total_volume = sum((nx.get_node_attributes(G, 'future_volume')).values())
     avg_volume = total_volume / nx.number_of_nodes(G)
+
     for node, data in G.nodes(data=True):
         if data['future_volume'] > n * avg_volume:
             seeds.append(node)
+
     non_seeds = set(nodes).difference(seeds)
+
     FutureVolume(G, non_seeds, Q)
+
     non_seeds = sorted(non_seeds, key=lambda node: G.node[node]['future_volume'], reverse=True)
 
     for node in non_seeds:
         seed_sum = 0.0
         seed_edges = set(seeds).intersection(G.neighbors(node))
+
         for seed in seed_edges:
             seed_sum += G[node][seed]['weight']
+
         if seed_sum / G.node[node]['sum_weight'] <= Q: # [ <= Q ] this difference causes division by zero in Edge Scaling
             seeds.append(node)
+
     return seeds
 
 
@@ -235,33 +270,47 @@ def ScaleEdges(G, edge_weight_limit, seeds):
     # initial = np.copy(minimum)
     # previous = np.copy(minimum)
     for init in range(initializations):
+
         initial = (np.random.rand(1, len(nodes))).flatten() - .5
         minimum = (np.full((1, len(nodes)), 1))[0]
         maximum = (np.full((1, len(nodes)), -1))[0]
         previous = np.copy(initial)
+
         for iteration in range(iterations):
+
             current = np.zeros(len(nodes))
+
             for node, data in nodes:
+
                 weights = data['sum_weight']
                 scale_neighbors = 0.0
+
                 for edge in G.edges(node, data=True):
                     scale_neighbors += edge[2]['weight'] * previous[edge[1]]
+
                 scale = omega * previous[node] + (1.0 - omega) * (scale_neighbors / weights)
                 current[node] = scale
+
                 if scale < minimum[node]:
                     minimum[node] = scale
                 if scale > maximum[node]:
                     maximum[node] = scale
+
             previous = np.copy(current)
+
         for index, center in enumerate(initial):
             a = abs(center - minimum[index])
             b = abs(maximum[index] - center)
             scales[init][index] = a / (a + b)
+    print scales
+    sys.exit()
     for node, neighbor in G.edges():
         summa = 0.0
         for init in scales:
-            summa += (init[node] - init[neighbor]) ** 2
+            summa += ((init[node] - init[neighbor]) ** 2)
+        # print str(node) + " " + str(neighbor) + " " + str(summa)
         G[node][neighbor]['weight'] = 1.0 / summa
+    # sys.exit()
 
 
 def DefineVariables():
@@ -282,22 +331,29 @@ def Solve(G):
 
     with open('iterations_schema.json', 'r') as schema_file:
             schema = json.load(schema_file)
+
     with open('name_schema.json', 'r') as schema_file:
             names = json.load(schema_file)
     # print schema
     # print schema["iterations"]
+
     for node in G.nodes():
         translate = node
         schema_trace = str(node)
+
         while decryptor >= 0:
             translate = str(schema["iterations"][str(decryptor)][str(translate)])
             schema_trace += " -> " + translate
             decryptor -= 1
+
         for table in names:
             if names[table]["id"] == int(translate):
                 schema_trace += " -> " + table
+
         decryptor = iteration - 1
+
         print schema_trace
+
     return None
 
 
